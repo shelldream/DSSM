@@ -102,3 +102,4 @@ ENV/
 test_*.py
 
 model/
+log_*

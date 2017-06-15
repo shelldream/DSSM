@@ -29,10 +29,19 @@ def xavier_init(fan_in, fan_out, constant=1):
 
 class DataBatchReader(object):
     """
-        批量文件读取器
-        读入的文件格式：每行三列
+        随机批量文件读取器
+        读入的文件格式
     """
-    def __init__(self, dirname, field_cnt, record_default="", field_delim="\t", batch_size=5000):
+    def __init__(self, dirname, field_cnt=3, record_default="", field_delim="\t", batch_size=5000):
+        """
+            Args:
+                dirname: str, 数据存储的路径
+                field_cnt: int, 数据文件每行的字段数
+                field_delim: str, 每个字段的分隔符
+                batch_size: int, 每个batch数据大小
+            Returns:
+                None
+        """
         if not os.path.exists(dirname):
             raise ValueError("The data directory %s does not exist!"%dirname)
         self.dirname = dirname + "/"
@@ -43,24 +52,26 @@ class DataBatchReader(object):
         key, value = self.reader.read(self.filename_queue)
         self.content = tf.decode_csv(value, record_defaults=[[record_default] for i in range(field_cnt)], field_delim=field_delim)
         self.features = tf.stack(self.content, axis=-1)
-
-    def get_batch_data(self):
+        
         min_after_dequeue = 10000
         capacity = min_after_dequeue +  self.batch_size
-        batch_f = tf.train.shuffle_batch([self.features], batch_size=self.batch_size, capacity=capacity, min_after_dequeue=min_after_dequeue)
+        self.batch_f = tf.train.shuffle_batch([self.features], batch_size=self.batch_size, capacity=capacity, min_after_dequeue=min_after_dequeue)
 
-        init = tf.initialize_all_variables()
+    def get_one_batch(self):
+        """获取一个batch的数据"""
         with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())
             coord = tf.train.Coordinator()
             threads = tf.train.start_queue_runners(coord=coord)
-            sess.run(init)
-
-            output = sess.run(batch_f)
+            output = sess.run(self.batch_f)
             coord.request_stop()
             coord.join(threads)
         return output 
 
 if __name__ == "__main__":
-    test_dir = "/home/admin/huangxiaojun/data/DSSM"
+    test_dir = "/home/admin/huangxiaojun/data/DSSM/raw_data"
     batch_reader = DataBatchReader(test_dir, field_cnt=3)
-    output = batch_reader.get_batch_data()
+    output = batch_reader.get_one_batch()
+    for item in output:
+        item = list(item)
+        print "\t".join(item)
