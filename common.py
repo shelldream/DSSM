@@ -32,7 +32,7 @@ class DataBatchReader(object):
         随机批量文件读取器
         读入的文件格式
     """
-    def __init__(self, dirname, field_cnt=3, record_default="", field_delim="\t", batch_size=5000):
+    def __init__(self, sess, dirname, field_cnt=3, record_default="", field_delim="\t", batch_size=5000):
         """
             Args:
                 dirname: str, 数据存储的路径
@@ -56,22 +56,15 @@ class DataBatchReader(object):
         min_after_dequeue = 10000
         capacity = min_after_dequeue +  self.batch_size
         self.batch_f = tf.train.shuffle_batch([self.features], batch_size=self.batch_size, capacity=capacity, min_after_dequeue=min_after_dequeue)
+        self.sess = sess
+        self.coord = tf.train.Coordinator()
+        self.threads = tf.train.start_queue_runners(coord=self.coord)
 
     def get_one_batch(self):
         """获取一个batch的数据"""
-        with tf.Session() as sess:
-            sess.run(tf.global_variables_initializer())
-            coord = tf.train.Coordinator()
-            threads = tf.train.start_queue_runners(coord=coord)
-            output = sess.run(self.batch_f)
-            coord.request_stop()
-            coord.join(threads)
+        output = self.sess.run(self.batch_f)
         return output 
 
-if __name__ == "__main__":
-    test_dir = "/home/admin/huangxiaojun/data/DSSM/raw_data"
-    batch_reader = DataBatchReader(test_dir, field_cnt=3)
-    output = batch_reader.get_one_batch()
-    for item in output:
-        item = list(item)
-        print "\t".join(item)
+    def close(self):
+        self.coord.request_stop()
+        self.coord.join(self.threads)
